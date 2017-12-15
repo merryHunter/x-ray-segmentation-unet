@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint, TensorBoard
 from sklearn.model_selection import train_test_split
-
+import matplotlib.pyplot as plt
 import params
 
 input_size = params.input_size
@@ -11,13 +11,33 @@ epochs = params.max_epochs
 batch_size = params.batch_size
 model = params.model_factory()
 
-df_train = pd.read_csv('input/train_masks.csv')
-ids_train = df_train['img'].map(lambda s: s.split('.')[0])
+df_train = None # pd.read_csv('input/train_masks.csv')
+ids_train = None #df_train['img'].map(lambda s: s.split('.')[0])
 
-ids_train_split, ids_valid_split = train_test_split(ids_train, test_size=0.2, random_state=42)
+ids_train_split, ids_valid_split = None,None #train_test_split(ids_train, test_size=0.2, random_state=42)
 
-print('Training on {} samples'.format(len(ids_train_split)))
-print('Validating on {} samples'.format(len(ids_valid_split)))
+# print('Training on {} samples'.format(len(ids_train_split)))
+# print('Validating on {} samples'.format(len(ids_valid_split)))
+
+
+def get_train_mask_paths(filename):
+    path_set = []
+    with open(filename, "r") as f:
+        lines = f.readlines()
+        for l in lines:
+            if l != '\n':
+                l = l.split(' ')
+                path_set.append((l[0],l[1].strip()))
+                im = cv2.imread(l[1],cv2.IMREAD_GRAYSCALE )
+
+    return path_set
+
+
+train_set = get_train_mask_paths("train_small.txt")
+val_set = get_train_mask_paths("val.txt")
+print val_set
+print('Training on {} samples'.format(len(train_set)))
+print('Validating on {} samples'.format(len(val_set)))
 
 
 def randomHueSaturationValue(image, hue_shift_limit=(-180, 180),
@@ -134,6 +154,78 @@ def valid_generator():
             yield x_batch, y_batch
 
 
+def tooth_train_generator():
+    while True:
+        for start in range(0, len(train_set), batch_size):
+            x_batch = []
+            y_batch = []
+            end = min(start + batch_size, len(train_set))
+            ids_train_batch = train_set[start:end]
+            for name in ids_train_batch:
+                # print name
+                # exit(0)
+                img = cv2.imread(name[0])
+                # print img.shape
+                img = cv2.resize(img, (input_size, input_size))
+                mask = cv2.imread(name[1], cv2.IMREAD_GRAYSCALE)
+
+                # print mask.shape
+                mask = cv2.resize(mask, (input_size, input_size))
+                """
+                img = randomHueSaturationValue(img,
+                                               hue_shift_limit=(-50, 50),
+                                               sat_shift_limit=(-5, 5),
+                                               val_shift_limit=(-15, 15))
+                img, mask = randomShiftScaleRotate(img, mask,
+                                                   shift_limit=(-0.0625, 0.0625),
+                                                   scale_limit=(-0.1, 0.1),
+                                                   rotate_limit=(-0, 0))
+                img, mask = randomHorizontalFlip(img, mask)
+                """
+                mask = np.expand_dims(mask, axis=2)
+                x_batch.append(img)
+                y_batch.append(mask)
+            x_batch = np.array(x_batch, np.float32) / 255
+            y_batch = np.array(y_batch, np.float32) / 255
+            yield x_batch, y_batch
+
+
+def tooth_valid_generator():
+    while True:
+        for start in range(0, len(val_set), batch_size):
+            x_batch = []
+            y_batch = []
+            end = min(start + batch_size, len(val_set))
+            ids_val_batch = val_set[start:end]
+            for name in ids_val_batch:
+                # print name
+                # exit(0)
+                img = cv2.imread(name[0])
+                # print img.shape
+                img = cv2.resize(img, (input_size, input_size))
+                mask = cv2.imread(name[1], cv2.IMREAD_GRAYSCALE)
+
+                # print mask.shape
+                mask = cv2.resize(mask, (input_size, input_size))
+                """
+                img = randomHueSaturationValue(img,
+                                               hue_shift_limit=(-50, 50),
+                                               sat_shift_limit=(-5, 5),
+                                               val_shift_limit=(-15, 15))
+                img, mask = randomShiftScaleRotate(img, mask,
+                                                   shift_limit=(-0.0625, 0.0625),
+                                                   scale_limit=(-0.1, 0.1),
+                                                   rotate_limit=(-0, 0))
+                img, mask = randomHorizontalFlip(img, mask)
+                """
+                mask = np.expand_dims(mask, axis=2)
+                x_batch.append(img)
+                y_batch.append(mask)
+            x_batch = np.array(x_batch, np.float32) / 255
+            y_batch = np.array(y_batch, np.float32) / 255
+            yield x_batch, y_batch
+
+
 callbacks = [EarlyStopping(monitor='val_loss',
                            patience=8,
                            verbose=1,
@@ -149,10 +241,10 @@ callbacks = [EarlyStopping(monitor='val_loss',
                              save_weights_only=True),
              TensorBoard(log_dir='logs')]
 
-model.fit_generator(generator=train_generator(),
-                    steps_per_epoch=np.ceil(float(len(ids_train_split)) / float(batch_size)),
+model.fit_generator(generator=tooth_train_generator(),
+                    steps_per_epoch=np.ceil(float(len(train_set)) / float(batch_size)),
                     epochs=epochs,
-                    verbose=2,
+                    verbose=1,
                     callbacks=callbacks,
-                    validation_data=valid_generator(),
-                    validation_steps=np.ceil(float(len(ids_valid_split)) / float(batch_size)))
+                    validation_data=tooth_valid_generator(),
+                    validation_steps=np.ceil(float(len(val_set)) / float(batch_size)))

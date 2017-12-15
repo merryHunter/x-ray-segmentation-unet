@@ -110,7 +110,7 @@ def get_unet_128(input_shape=(128, 128, 3),
 
     model = Model(inputs=inputs, outputs=classify)
 
-    model.compile(optimizer=RMSprop(lr=0.0001), loss=bce_dice_loss, metrics=[dice_coeff])
+    model.compile(optimizer=RMSprop(lr=0.01), loss=bce_dice_loss, metrics=[dice_coeff])
 
     return model
 
