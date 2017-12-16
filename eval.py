@@ -34,7 +34,7 @@ def get_test_mask_paths(filename):
 
     return path_set
 
-names = get_test_mask_paths("val.txt")
+names = get_test_mask_paths("myval.txt")
 # for id in ids_test:
 #     names.append('{}.jpg'.format(id))
 
@@ -54,7 +54,7 @@ def run_length_encode(mask):
 
 rles = []
 
-model.load_weights(filepath='weights/best_weights.hdf5')
+model.load_weights(filepath='weights/best_weights_100.hdf5')
 
 
 def read_mask_image(mask_img):
@@ -147,11 +147,6 @@ for start in tqdm(range(0, len(names), batch_size)):
         pred, orig = get_pred_orig_grayscale(p, mask_orig)
         cv2.imwrite(cur_dir + 'mask_pred_' + ns[i][1].split('/')[-1],255 * pred)
         cv2.imwrite(cur_dir + 'mask_orig_' + ns[i][1].split('/')[-1],255 * orig)
-        print pred
-        print orig
-        # plt.imshow(pred)
-        # plt.imshow(orig)
-        # plt.show()
         iou = metric.mean_accuracy(pred, orig)
         print "MEAN IU: {0}".format(iou)
 
