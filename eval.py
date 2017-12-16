@@ -5,6 +5,8 @@ from tqdm import tqdm
 
 import params
 import matplotlib.pyplot as plt
+import PIL
+import os
 
 input_size = params.input_size
 batch_size = params.batch_size
@@ -15,6 +17,9 @@ model = params.model_factory()
 
 df_test = None #pd.read_csv('input/sample_submission.csv')
 ids_test = None #df_test['img'].map(lambda s: s.split('.')[0])
+
+OUTPUT_DIR = 'output/'
+
 
 def get_test_mask_paths(filename):
     path_set = []
@@ -50,28 +55,81 @@ rles = []
 
 model.load_weights(filepath='weights/best_weights.hdf5')
 
+
+def read_mask_image(mask_img):
+    mask_img[mask_img == False] = 0
+    mask_img[mask_img == True] = 1
+    return mask_img
+
 print('Predicting on {} samples with batch_size = {}...'.format(len(names), batch_size))
+
+
+def visualize(img_orig, mask_pred, mask_orig):
+    mask_pred = get_transparent_prediction(img_orig, mask_pred)
+    plt.subplot(131)
+    plt.imshow(img_orig)
+    plt.subplot(132)
+    plt.imshow(mask_orig)
+    plt.subplot(133)
+    plt.imshow(mask_pred)
+    plt.show()
+
+
+def get_transparent_prediction(img_orig, mask_pred, alpha=0.5, orig=True):
+    output = img_orig.copy()
+    image = np.zeros((orig_height,orig_width, 3), dtype="uint8")
+    image[np.where((mask_pred != [0, 0, 0]).all(axis=2))] = [255, 0, 0]
+    if orig:
+        image = mask_pred
+    overlay = image.copy()
+    cv2.addWeighted(overlay, alpha, output, 1 - alpha, 0, output)
+    output = cv2.cvtColor(output, cv2.COLOR_BGR2RGB)
+    return output
+
+
 for start in tqdm(range(0, len(names), batch_size)):
     x_batch = []
     end = min(start + batch_size, len(names))
     ids_test_batch = names[start:end]
+    ns = []
     for name in ids_test_batch:
+        print name[0]
+        ns.append((name[0],name[1]))
         img = cv2.imread(name[0])
         img = cv2.resize(img, (input_size, input_size))
         x_batch.append(img)
     x_batch = np.array(x_batch, np.float32) / 255
     preds = model.predict_on_batch(x_batch)
     preds = np.squeeze(preds, axis=3)
-    for pred in preds:
-        prob = cv2.resize(pred, (orig_width, orig_height))
-        mask = prob > threshold
-        print mask
+    print len(preds)
+    plt.figure(figsize=(20, 20))
+    i = 0
 
+    for pred in preds:
+        img_name = (ns[i][0].split('/')[-1]).split('.')[0] + '/'
+        cur_dir = OUTPUT_DIR + img_name
+        os.mkdir(OUTPUT_DIR + img_name)
+        prob = cv2.resize(pred, (orig_width, orig_height))
+        orig_img = cv2.imread(ns[i][0])
+        cv2.imwrite('temp.jpg', prob)
+        p = cv2.imread('temp.jpg')
+        mask_orig = cv2.imread(ns[i][1])
+
+        # visualize(orig_img, 255 * prob, mask_orig)
+
+        # get and write transparent mask for predicted image
+        output = get_transparent_prediction(orig_img, p,alpha=0.5,orig=False)
+        cv2.imwrite(cur_dir + str(i) + '_' + ns[i][1].split('/')[-1], output)
+        # get and write transparent mask for ground truth
+        output = get_transparent_prediction(orig_img, mask_orig,alpha=0.5,orig=True)
+        cv2.imwrite(cur_dir  + 'orig_' + ns[i][1].split('/')[-1], output)
+
+        # for original submission
+        mask = prob > threshold
         rle = run_length_encode(mask)
-        print "rle"
-        print rle
-        cv2.imwrite("im.jpg", rle)
         rles.append(rle)
+        i += 1
+
 
 print("Generating submission file...")
 df = pd.DataFrame({'img': names, 'rle_mask': rles})
