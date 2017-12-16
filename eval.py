@@ -34,7 +34,7 @@ def get_test_mask_paths(filename):
 
     return path_set
 
-names = get_test_mask_paths("myval.txt")
+names = get_test_mask_paths("train.txt")
 # for id in ids_test:
 #     names.append('{}.jpg'.format(id))
 
@@ -54,7 +54,7 @@ def run_length_encode(mask):
 
 rles = []
 
-model.load_weights(filepath='weights/best_weights_100.hdf5')
+model.load_weights(filepath='weights/best_weights.hdf5')
 
 
 def read_mask_image(mask_img):
@@ -97,7 +97,7 @@ def get_pred_orig_grayscale(pred, orig):
     image_pred[np.where((pred != [0, 0, 0]).all(axis=2))] = np.ones((1, 1), dtype="uint8")
 
     # select indexes where green in intensive so it's a mask
-    mask = orig[:,:,1] > 100
+    mask = orig[:,:,1] > 230
     image_orig = np.zeros((orig_height, orig_width, 3), dtype="uint8")
     image_orig[mask] = np.ones((1, 1, 1), dtype="uint8")
 
@@ -113,7 +113,6 @@ for start in tqdm(range(0, len(names), batch_size)):
     ids_test_batch = names[start:end]
     ns = []
     for name in ids_test_batch:
-        print name[0]
         ns.append((name[0],name[1]))
         img = cv2.imread(name[0])
         img = cv2.resize(img, (input_size, input_size))
@@ -121,11 +120,11 @@ for start in tqdm(range(0, len(names), batch_size)):
     x_batch = np.array(x_batch, np.float32) / 255
     preds = model.predict_on_batch(x_batch)
     preds = np.squeeze(preds, axis=3)
-    print len(preds)
     plt.figure(figsize=(20, 20))
     i = 0
 
     for pred in preds:
+        print ns[i][0]
         img_name = (ns[i][0].split('/')[-1]).split('.')[0] + '/'
         cur_dir = OUTPUT_DIR + img_name
         os.mkdir(OUTPUT_DIR + img_name)
@@ -147,10 +146,11 @@ for start in tqdm(range(0, len(names), batch_size)):
         pred, orig = get_pred_orig_grayscale(p, mask_orig)
         cv2.imwrite(cur_dir + 'mask_pred_' + ns[i][1].split('/')[-1],255 * pred)
         cv2.imwrite(cur_dir + 'mask_orig_' + ns[i][1].split('/')[-1],255 * orig)
-        iou = metric.mean_accuracy(pred, orig)
-        print "MEAN IU: {0}".format(iou)
+        iou = metric.pixel_accuracy(pred, orig)
+        if iou != -1:
+            pixel_accuracy.append(iou)
+        print "MEAN accuracy: {0}".format(iou)
 
-        pixel_accuracy.append(iou)
         # for original submission
         mask = prob > threshold
         rle = run_length_encode(mask)
@@ -158,6 +158,7 @@ for start in tqdm(range(0, len(names), batch_size)):
         i += 1
 
 print "Average pixel accuracy: {0}".format(np.sum(pixel_accuracy) / len(pixel_accuracy))
+print "number of defected images: {0}".format(len(pixel_accuracy))
 
 print("Generating submission file...")  
 df = pd.DataFrame({'img': names, 'rle_mask': rles})

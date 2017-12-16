@@ -25,7 +25,8 @@ def pixel_accuracy(eval_segm, gt_segm):
     sum_t_i  = 0
 
     for i, c in enumerate(cl):
-
+        if i == 0:
+            continue
         curr_eval_mask = eval_mask[i, :, :]
         curr_gt_mask = gt_mask[i, :, :]
 
@@ -33,7 +34,7 @@ def pixel_accuracy(eval_segm, gt_segm):
         sum_t_i  += np.sum(curr_gt_mask)
  
     if (sum_t_i == 0):
-        pixel_accuracy_ = 0
+        pixel_accuracy_ = -1
     else:
         pixel_accuracy_ = sum_n_ii / sum_t_i
 
@@ -52,8 +53,8 @@ def mean_accuracy(eval_segm, gt_segm):
     accuracy = list([0]) * n_cl
 
     for i, c in enumerate(cl):
-        if i == 0: # skip background class
-            continue
+        # if i == 0: # skip background class
+        #     continue
         curr_eval_mask = eval_mask[i, :, :]
         curr_gt_mask = gt_mask[i, :, :]
 
@@ -63,7 +64,7 @@ def mean_accuracy(eval_segm, gt_segm):
         if (t_i != 0):
             accuracy[i] = n_ii / t_i
 
-    mean_accuracy_ = accuracy[1] # np.mean(accuracy) # - for n classes
+    mean_accuracy_ = np.mean(accuracy) # - for n classes
     return mean_accuracy_
 
 def mean_IU(eval_segm, gt_segm):
